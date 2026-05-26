@@ -32,7 +32,16 @@ from .serializers import (
     CuotaMensualSerializer,
 )
 
-class CrearUsuarioView(generics.CreateAPIView):
+
+class TenantQuerysetMixin:
+    """Filtra el queryset base por la cooperadora del request."""
+    def get_queryset(self):
+        return super().get_queryset().filter(cooperadora=self.request.cooperadora)
+
+    def perform_create(self, serializer):
+        serializer.save(cooperadora=self.request.cooperadora)
+
+class CrearUsuarioView(TenantQuerysetMixin, generics.CreateAPIView):
     """
     Crea un nuevo usuario (PAD o SOC).
     Solo accesible para Tesorero y Admin.
@@ -43,13 +52,13 @@ class CrearUsuarioView(generics.CreateAPIView):
     serializer_class = UsuarioCreateSerializer
     permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
 
-class UsuarioDetailView(generics.RetrieveUpdateDestroyAPIView):
+class UsuarioDetailView(TenantQuerysetMixin, generics.RetrieveUpdateDestroyAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     lookup_field = 'uuid'
     permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
 
-class UsuarioListView(generics.ListAPIView):
+class UsuarioListView(TenantQuerysetMixin, generics.ListAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
@@ -80,7 +89,10 @@ class MisHijosView(generics.ListAPIView):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        return Usuario.objects.filter(padre=self.request.user)
+        return Usuario.objects.filter(
+            cooperadora=self.request.cooperadora,
+            padre=self.request.user,
+        )
 
 
 class EstadoCuentaView(APIView):
@@ -88,12 +100,15 @@ class EstadoCuentaView(APIView):
 
     def get(self, request):
         anio = int(request.query_params.get('anio', timezone.now().year))
-        hijos = Usuario.objects.filter(padre=request.user)
+        hijos = Usuario.objects.filter(
+            cooperadora=request.cooperadora,
+            padre=request.user,
+        )
         serializer = EstadoCuentaHijoSerializer(hijos, many=True, context={'anio': anio})
         return Response(serializer.data)
 
 
-class PublicacionViewSet(viewsets.ModelViewSet):
+class PublicacionViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
     queryset = Publicacion.objects.all()
     serializer_class = PublicacionSerializer
     parser_classes = [MultiPartParser, FormParser, JSONParser]
@@ -104,7 +119,7 @@ class PublicacionViewSet(viewsets.ModelViewSet):
         return [IsAuthenticated()]
 
     def perform_create(self, serializer):
-        publicacion = serializer.save()
+        publicacion = serializer.save(cooperadora=self.request.cooperadora)
         for img in self.request.FILES.getlist('imagenes'):
             PublicacionImagen.objects.create(publicacion=publicacion, imagen=img)
 
@@ -117,7 +132,7 @@ class PublicacionViewSet(viewsets.ModelViewSet):
             PublicacionImagen.objects.filter(id__in=ids_eliminar, publicacion=publicacion).delete()
 
 
-class GradoViewSet(viewsets.ReadOnlyModelViewSet):
+class GradoViewSet(TenantQuerysetMixin, viewsets.ReadOnlyModelViewSet):
     queryset = Grado.objects.all()
     serializer_class = GradoSerializer
     permission_classes = [IsAuthenticated]
@@ -126,14 +141,18 @@ class InscripcionViewSet(viewsets.ModelViewSet):
     serializer_class = InscripcionSerializer
 
     def get_queryset(self):
+        coop = self.request.cooperadora
         user = self.request.user
         if user.rol in ['TES', 'ADMIN', 'PRES']:
-            return Inscripcion.objects.all()
+            return Inscripcion.objects.filter(cooperadora=coop)
         if user.rol == 'PAD':
-            return Inscripcion.objects.filter(usuario__padre=user)
+            return Inscripcion.objects.filter(cooperadora=coop, usuario__padre=user)
         if user.rol == 'SOC':
-            return Inscripcion.objects.filter(usuario=user)
+            return Inscripcion.objects.filter(cooperadora=coop, usuario=user)
         return Inscripcion.objects.none()
+
+    def perform_create(self, serializer):
+        serializer.save(cooperadora=self.request.cooperadora)
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
@@ -147,13 +166,14 @@ class PagoViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         from django.db.models import Q
+        coop = self.request.cooperadora
         user = self.request.user
         if user.rol in ['TES', 'ADMIN', 'PRES']:
-            queryset = Pago.objects.all()
+            queryset = Pago.objects.filter(cooperadora=coop)
         elif user.rol == 'PAD':
-            queryset = Pago.objects.filter(inscripcion__usuario__padre=user)
+            queryset = Pago.objects.filter(cooperadora=coop, inscripcion__usuario__padre=user)
         elif user.rol == 'SOC':
-            queryset = Pago.objects.filter(inscripcion__usuario=user)
+            queryset = Pago.objects.filter(cooperadora=coop, inscripcion__usuario=user)
         else:
             return Pago.objects.none()
         mes = self.request.query_params.get('mes')
@@ -195,9 +215,11 @@ class PagoViewSet(viewsets.ModelViewSet):
         anio = serializer.validated_data['anio']
         monto_total = serializer.validated_data['monto_total']
 
+        coop = request.cooperadora
         with transaction.atomic():
             if monto_total >= cuota.monto:
                 Pago.objects.create(
+                    cooperadora=coop,
                     inscripcion=inscripcion,
                     tipo='mensual',
                     mes=mes,
@@ -209,6 +231,7 @@ class PagoViewSet(viewsets.ModelViewSet):
                 if monto_total > cuota.monto:
                     excedente = monto_total - cuota.monto
                     Pago.objects.create(
+                        cooperadora=coop,
                         inscripcion=inscripcion,
                         tipo='donacion',
                         mes=mes,
@@ -219,6 +242,7 @@ class PagoViewSet(viewsets.ModelViewSet):
                     mensaje += f" Excedente de ${excedente} registrado como donación."
             else:
                 Pago.objects.create(
+                    cooperadora=coop,
                     inscripcion=inscripcion,
                     tipo='donacion',
                     mes=mes,
@@ -241,13 +265,14 @@ class PagoViewSet(viewsets.ModelViewSet):
         monto_total = serializer.validated_data['monto_total']
         cuotas = serializer.context['cuotas']  # ya están validadas
 
+        coop = request.cooperadora
         monto_esperado = sum(cuota.monto for cuota in cuotas)
 
         with transaction.atomic():
             if monto_total >= monto_esperado:
-                # Crear pagos de cuota para cada mes
                 for cuota in cuotas:
                     Pago.objects.create(
+                        cooperadora=coop,
                         inscripcion=inscripcion,
                         tipo='mensual',
                         mes=cuota.mes,
@@ -255,10 +280,10 @@ class PagoViewSet(viewsets.ModelViewSet):
                         monto=cuota.monto,
                         observaciones=f"Pago mes {cuota.get_mes_display()}"
                     )
-                # Excedente
                 if monto_total > monto_esperado:
                     excedente = monto_total - monto_esperado
                     Pago.objects.create(
+                        cooperadora=coop,
                         inscripcion=inscripcion,
                         tipo='donacion',
                         mes=None,
@@ -270,8 +295,8 @@ class PagoViewSet(viewsets.ModelViewSet):
                 if monto_total > monto_esperado:
                     mensaje += f" Se generó una donación de ${excedente}."
             else:
-                # No alcanza: todo como donación
                 Pago.objects.create(
+                    cooperadora=coop,
                     inscripcion=inscripcion,
                     tipo='donacion',
                     mes=None,
@@ -294,6 +319,7 @@ class PagoViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             pago = Pago.objects.create(
+                cooperadora=request.cooperadora,
                 inscripcion=inscripcion,
                 tipo='anual',
                 mes=None,
@@ -355,12 +381,13 @@ class LogoutView(APIView):
         return Response({'detail': 'Sesión cerrada correctamente.'}, status=status.HTTP_200_OK)
 
 
-class CuotaMensualViewSet(viewsets.ModelViewSet):
+class CuotaMensualViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
+    queryset = CuotaMensual.objects.all()
     serializer_class = CuotaMensualSerializer
     permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
 
     def get_queryset(self):
-        queryset = CuotaMensual.objects.all()
+        queryset = super().get_queryset()
         anio = self.request.query_params.get('anio')
         if anio:
             queryset = queryset.filter(anio=anio)
