@@ -2,6 +2,7 @@
 import { createContext, useState, useEffect, useContext } from 'react';
 import type { ReactNode } from 'react';
 import { API_URL } from '../config';
+import { useTenant } from './TenantContext';
 
 // Definir los tipos
 interface User {
@@ -80,6 +81,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
+  const { slug } = useTenant();
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [refreshToken, setRefreshToken] = useState<string | null>(null);
@@ -117,9 +119,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Login
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: any }> => {
     try {
-      const response = await fetch(`${API_URL}/api/login/`, { // 👈 URL corregida
+      const response = await fetch(`${API_URL}/api/login/`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Tenant-Slug': slug },
         body: JSON.stringify({ email, password }),
       });
       const data = await handleResponse(response) as LoginResponse;
@@ -200,9 +202,8 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     const isFormData = options.body instanceof FormData;
     const headers = new Headers(options.headers || {});
     if (!isFormData) headers.set('Content-Type', 'application/json');
-    if (token) {
-      headers.set('Authorization', `Bearer ${token}`);
-    }
+    if (token) headers.set('Authorization', `Bearer ${token}`);
+    if (slug) headers.set('X-Tenant-Slug', slug);
 
     const response = await fetch(url, { ...options, headers });
 
@@ -212,6 +213,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         const newHeaders = new Headers(options.headers || {});
         if (!isFormData) newHeaders.set('Content-Type', 'application/json');
         newHeaders.set('Authorization', `Bearer ${newToken}`);
+        if (slug) newHeaders.set('X-Tenant-Slug', slug);
         return fetch(url, { ...options, headers: newHeaders });
       }
     }

@@ -1,9 +1,10 @@
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
+import { TenantProvider } from './contex/TenantContext';
+import { AuthProvider } from './contex/UserContex';
 import Header from './components/Header';
 import HomePages from './pages/HomePages';
-import RegistroForm from './components/RegistroForm';
 import LoginFormPages from './pages/LoginFormPages';
 import PagosPage from './pages/PagosPage';
 import PublicacionesPage from './pages/PublicacionesPage';
@@ -12,25 +13,35 @@ import MisHijosPage from './pages/MisHijosPage';
 import UsuariosPage from './pages/UsuariosPage';
 import PerfilPage from './pages/PerfilPage';
 import CuotasPage from './pages/CuotasPage';
+import SuscripcionBloqueadaPage from './pages/SuscripcionBloqueadaPage';
+import RegistroCooperadoraPage from './pages/RegistroCooperadoraPage';
 
 function App() {
   return (
     <BrowserRouter>
-      <ToastContainer position="top-right" autoClose={5000} />
-      <Header />
-      <Routes>
-        <Route path="/" element={<LoginFormPages />} />
-        <Route path="/about" element={<HomePages />} />
-        <Route path="/registro" element={<RegistroForm />} />
-        <Route path='/login' element={<LoginFormPages />} />
-        <Route path='/pagos' element={<PagosPage />} />
-        <Route path='/publicaciones' element={<PublicacionesPage />} />
-        <Route path='/estado-cuenta' element={<EstadoCuentaPage />} />
-        <Route path='/mis-hijos' element={<MisHijosPage />} />
-        <Route path='/usuarios' element={<UsuariosPage />} />
-        <Route path='/perfil' element={<PerfilPage />} />
-        <Route path='/cuotas' element={<CuotasPage />} />
-      </Routes>
+      <TenantProvider>
+        <AuthProvider>
+          <ToastContainer position="top-right" autoClose={5000} />
+          <Header />
+          <Routes>
+            {/* Ruta pública — registro de cooperadoras */}
+            <Route path="/register" element={<RegistroCooperadoraPage />} />
+
+            {/* Rutas por tenant — /:slug/... */}
+            <Route path="/:slug" element={<LoginFormPages />} />
+            <Route path="/:slug/login" element={<LoginFormPages />} />
+            <Route path="/:slug/about" element={<HomePages />} />
+            <Route path="/:slug/pagos" element={<PagosPage />} />
+            <Route path="/:slug/publicaciones" element={<PublicacionesPage />} />
+            <Route path="/:slug/estado-cuenta" element={<EstadoCuentaPage />} />
+            <Route path="/:slug/mis-hijos" element={<MisHijosPage />} />
+            <Route path="/:slug/usuarios" element={<UsuariosPage />} />
+            <Route path="/:slug/perfil" element={<PerfilPage />} />
+            <Route path="/:slug/cuotas" element={<CuotasPage />} />
+            <Route path="/:slug/suscripcion-bloqueada" element={<SuscripcionBloqueadaPage />} />
+          </Routes>
+        </AuthProvider>
+      </TenantProvider>
     </BrowserRouter>
   );
 }
