@@ -207,6 +207,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
     const response = await fetch(url, { ...options, headers });
 
+    if (response.status === 403) {
+      const data = await response.clone().json().catch(() => ({}));
+      if (typeof data.detail === 'string' && data.detail.includes('uscripci')) {
+        window.location.href = `/${slug}/suscripcion-bloqueada`;
+      }
+      return response;
+    }
+
     if (response.status === 401) {
       const newToken = await refreshAccessToken();
       if (newToken) {
