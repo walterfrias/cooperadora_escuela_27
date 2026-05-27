@@ -18,8 +18,13 @@ Requiere que .env.saas tenga FACTORY_CONTRACT_ADDRESS y PRESIDENTE_PLATFORM_ADDR
 
 import os
 import sys
+import warnings
 import django
 from pathlib import Path
+
+# Los receipts de la Factory incluyen eventos de Token y MetaDAO que no están
+# en el ABI de la Factory → web3.py emite UserWarning por cada uno. Son inofensivos.
+warnings.filterwarnings("ignore", category=UserWarning, module="eth_utils")
 
 # ── Setup Django ────────────────────────────────────────────────────────────
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
@@ -75,8 +80,14 @@ def paso1_activar_cooperadora():
     NOMBRE = "Cooperadora Verificacion Test"
     SLUG   = "verificacion-test-script"
 
-    # Limpiar si quedó de una ejecución anterior
-    Cooperadora.objects.filter(slug=SLUG).delete()
+    # Limpiar si quedó de una ejecución anterior (orden: hijos antes que padre)
+    coop_anterior = Cooperadora.objects.filter(slug=SLUG).first()
+    if coop_anterior:
+        Pago.objects.filter(cooperadora=coop_anterior).delete()
+        Inscripcion.objects.filter(cooperadora=coop_anterior).delete()
+        Usuario.objects.filter(cooperadora=coop_anterior).delete()
+        coop_anterior.delete()
+        ok("Limpieza de ejecución anterior completada")
 
     # Crear en PENDING (sin acceso, sin DAO)
     coop = Cooperadora.objects.create(
@@ -138,13 +149,30 @@ def paso2_crear_padre(coop):
 def paso3_registrar_pago(coop, padre):
     step("3", "Registrar pago mensual → mintear 1 token COOP")
 
-    # Necesitamos un Grado y una Inscripcion para poder crear un Pago
-    grado, _ = Grado.objects.get_or_create(numero=1, letra="A")
+    # El modelo requiere un SOC (alumno) con padre=PAD para poder inscribir y pagar.
+    # El signal mint_token_on_pago busca: pago → inscripcion → usuario (SOC) → padre (PAD) → wallet.
+    EMAIL_SOC = "alumno_verificacion_script@test.local"
+    Usuario.objects.filter(email=EMAIL_SOC).delete()
 
-    Inscripcion.objects.filter(usuario=padre, anio=2026).delete()
+    alumno = Usuario.objects.create_user(
+        email=EMAIL_SOC,
+        password="test1234",
+        nombre="Alumno",
+        apellido="Script",
+        dni="00000002",
+        rol="SOC",
+        cooperadora=coop,
+        padre=padre,          # FK al PAD creado en paso 2
+    )
+    ok(f"Usuario SOC creado id={alumno.pk}, padre={padre.pk}")
+
+    grado, _ = Grado.objects.get_or_create(numero=1, letra="A", cooperadora=coop)
+
+    Inscripcion.objects.filter(usuario=alumno, anio=2026).delete()
     inscripcion = Inscripcion.objects.create(
-        usuario=padre,
+        usuario=alumno,
         grado=grado,
+        cooperadora=coop,
         anio=2026,
         modalidad="mensual",
         activa=True,
@@ -159,7 +187,6 @@ def paso3_registrar_pago(coop, padre):
         mes=5,
         anio=2026,
         monto=500,
-        fecha_pago=date.today(),
     )
 
     pago.refresh_from_db()
@@ -168,19 +195,22 @@ def paso3_registrar_pago(coop, padre):
         fail("token_minteado=False después de crear el pago. Revisar logs.")
     ok(f"Token minteado. TX hash: {pago.token_mint_tx}")
 
-    return pago
+    return alumno, pago
 
 
 # ── Paso 4: Limpieza ────────────────────────────────────────────────────────
 
-def paso4_limpiar(coop, padre, pago):
+def paso4_limpiar(coop, padre, alumno, pago):
     step("4", "Limpieza de datos de prueba")
 
     Pago.objects.filter(pk=pago.pk).delete()
     ok("Pago eliminado")
 
-    Inscripcion.objects.filter(usuario=padre).delete()
+    Inscripcion.objects.filter(usuario=alumno).delete()
     ok("Inscripcion eliminada")
+
+    Usuario.objects.filter(pk=alumno.pk).delete()
+    ok("Usuario SOC eliminado")
 
     Usuario.objects.filter(pk=padre.pk).delete()
     ok("Usuario PAD eliminado")
@@ -199,10 +229,10 @@ def main():
     print("══════════════════════════════════════════")
 
     verificar_configuracion()
-    coop  = paso1_activar_cooperadora()
-    padre = paso2_crear_padre(coop)
-    pago  = paso3_registrar_pago(coop, padre)
-    paso4_limpiar(coop, padre, pago)
+    coop         = paso1_activar_cooperadora()
+    padre        = paso2_crear_padre(coop)
+    alumno, pago = paso3_registrar_pago(coop, padre)
+    paso4_limpiar(coop, padre, alumno, pago)
 
     print("\n══════════════════════════════════════════")
     print("  Todo OK — flujo verificado end-to-end")
