@@ -114,6 +114,7 @@ class UsuarioCreateSerializer(serializers.ModelSerializer):
             Inscripcion.objects.create(
                 usuario=user,
                 grado=grado,
+                cooperadora=user.cooperadora,
                 anio=anio,
                 modalidad=modalidad,
             )
