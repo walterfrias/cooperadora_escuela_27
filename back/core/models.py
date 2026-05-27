@@ -124,6 +124,7 @@ class Usuario(AbstractUser):
     )
     wallet_address = models.CharField(max_length=42, null=True, blank=True)
     wallet_private_key_encrypted = models.TextField(null=True, blank=True)
+    key_revealed = models.BooleanField(default=False)
 
     # Configuración
     USERNAME_FIELD = 'email'

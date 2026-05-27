@@ -23,6 +23,7 @@ urlpatterns = [
     path('mis-hijos/', views.MisHijosView.as_view(), name='mis-hijos'),
     path('estado-cuenta/', views.EstadoCuentaView.as_view(), name='estado-cuenta'),
     path('me/', views.MeView.as_view(), name='me'),
+    path('mi-wallet/', views.MiWalletView.as_view(), name='mi-wallet'),
     path('cambiar-password/', views.CambiarPasswordView.as_view(), name='cambiar-password'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token-refresh'),
     path('logout/', views.LogoutView.as_view(), name='logout'),

@@ -19,8 +19,9 @@ class UsuarioSerializer(serializers.ModelSerializer):
         model = Usuario
         fields = ['uuid', 'email', 'dni', 'nombre', 'apellido',
                   'rol', 'telefono', 'activo', 'fecha_registro',
-                  'padre_email', 'padre_dni', 'padre_nombre', 'padre_apellido', 'dni_padre']
-        read_only_fields = ['uuid', 'fecha_registro']
+                  'padre_email', 'padre_dni', 'padre_nombre', 'padre_apellido', 'dni_padre',
+                  'wallet_address', 'key_revealed']
+        read_only_fields = ['uuid', 'fecha_registro', 'wallet_address', 'key_revealed']
 
     def get_padre_email(self, obj):
         return obj.padre.email if obj.padre else None

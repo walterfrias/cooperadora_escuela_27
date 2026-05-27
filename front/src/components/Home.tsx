@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contex/UserContex';
+import WalletRevealBanner from './WalletRevealBanner';
 
 interface DashCard {
   icon: string;
@@ -160,6 +161,11 @@ const Home: React.FC = () => {
         <h1 className="text-4xl font-extrabold text-gray-800 dark:text-gray-100 mb-2">{greeting}</h1>
         <p className="text-gray-500 text-lg">{subtitle}</p>
       </section>
+      {isPadre && user?.wallet_address && !user?.key_revealed && (
+        <div className="container mx-auto px-4 max-w-5xl">
+          <WalletRevealBanner />
+        </div>
+      )}
       <section className={`container mx-auto px-4 pb-16 grid gap-6 max-w-5xl ${
         cards.length === 1 ? 'max-w-sm' :
         cards.length === 2 ? 'md:grid-cols-2 max-w-3xl' :

@@ -14,6 +14,8 @@ interface User {
   rol: string;
   telefono?: string;
   activo?: boolean;
+  wallet_address?: string | null;
+  key_revealed?: boolean;
 }
 
 interface LoginResponse {

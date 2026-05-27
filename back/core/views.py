@@ -1,3 +1,5 @@
+from cryptography.fernet import Fernet
+import os
 from rest_framework import generics, permissions
 from django.core.mail import send_mail
 from django.conf import settings as django_settings
@@ -505,3 +507,44 @@ class ActivarCooperadoraView(APIView):
             c.save(update_fields=['activation_token'])
 
         return Response({'detail': 'Usuario creado correctamente. Ya podés iniciar sesión.'})
+
+
+class MiWalletView(APIView):
+    """
+    GET /mi-wallet/
+    Solo para PAD autenticado.
+    - Primera llamada: devuelve address + private_key desencriptada y marca key_revealed=True.
+    - Llamadas siguientes: devuelve solo address (key_revealed=True → key omitida).
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+
+        if user.rol != 'PAD':
+            return Response(
+                {'detail': 'Solo los padres tienen wallet.'},
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
+        if not user.wallet_address:
+            return Response(
+                {'detail': 'Wallet aún no generada. Intentá en unos segundos.'},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        data = {
+            'address': user.wallet_address,
+            'revealed': user.key_revealed,
+            'private_key': None,
+        }
+
+        if not user.key_revealed:
+            encryption_key = os.environ.get('WALLET_ENCRYPTION_KEY', '')
+            fernet = Fernet(encryption_key.encode())
+            data['private_key'] = fernet.decrypt(
+                user.wallet_private_key_encrypted.encode()
+            ).decode()
+            Usuario.objects.filter(pk=user.pk).update(key_revealed=True)
+
+        return Response(data)
