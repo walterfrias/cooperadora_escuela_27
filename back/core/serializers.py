@@ -247,8 +247,12 @@ class PagoSimpleSerializer(serializers.Serializer):
     monto_total = serializers.DecimalField(max_digits=10, decimal_places=2)
 
     def validate(self, data):
+        cooperadora = self.context['request'].cooperadora
+
         try:
-            inscripcion = Inscripcion.objects.get(id=data['inscripcion_id'], anio=data['anio'])
+            inscripcion = Inscripcion.objects.get(
+                id=data['inscripcion_id'], anio=data['anio'], cooperadora=cooperadora
+            )
         except Inscripcion.DoesNotExist:
             raise serializers.ValidationError("Inscripción no encontrada para ese año.")
 
@@ -259,9 +263,11 @@ class PagoSimpleSerializer(serializers.Serializer):
             raise serializers.ValidationError("Ya existe un pago registrado para ese mes.")
 
         try:
-            cuota = CuotaMensual.objects.get(anio=data['anio'], mes=data['mes'], activa=True)
+            cuota = CuotaMensual.objects.get(
+                anio=data['anio'], mes=data['mes'], activa=True, cooperadora=cooperadora
+            )
         except CuotaMensual.DoesNotExist:
-            raise serializers.ValidationError(f"No hay cuota definida para ese mes y año.")
+            raise serializers.ValidationError("No hay cuota definida para ese mes y año.")
 
         self.context['inscripcion'] = inscripcion
         self.context['cuota'] = cuota
@@ -301,8 +307,11 @@ class PagoMultipleSerializer(serializers.Serializer):
         if inscripcion.modalidad != 'mensual':
             raise serializers.ValidationError("La inscripción no es de modalidad mensual, no se pueden pagar meses sueltos.")
 
-        # Validar que los meses tengan cuota definida
-        cuotas = CuotaMensual.objects.filter(anio=data['anio'], mes__in=data['meses'], activa=True)
+        # Validar que los meses tengan cuota definida (filtrado por cooperadora)
+        cooperadora = self.context['request'].cooperadora
+        cuotas = CuotaMensual.objects.filter(
+            anio=data['anio'], mes__in=data['meses'], activa=True, cooperadora=cooperadora
+        )
         if cuotas.count() != len(data['meses']):
             meses_faltantes = set(data['meses']) - set(cuotas.values_list('mes', flat=True))
             raise serializers.ValidationError(f"No hay cuota definida para los meses: {meses_faltantes}")
