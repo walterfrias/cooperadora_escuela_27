@@ -1,0 +1,23 @@
+flowchart TD
+    A([TES registra pago mensual\no anual para un SOC]) --> B[Pago.objects.create]
+    B --> C[post_save signal\nmint_token_on_pago]
+
+    C --> D{tipo == donacion?}
+    D -->|Sí| E([No se mintea token\nflujo termina])
+    D -->|No| F{¿padre tiene\nwallet_address?}
+
+    F -->|No| G[/Error logueado\npago queda token_minteado=False/]
+    F -->|Sí| H{¿cooperadora tiene\ndao_address?}
+
+    H -->|No| G
+    H -->|Sí| I[Construir tx\nclone_dao.mintTokenPadre\nwallet_padre]
+
+    I --> J[Firmar con\nBACKEND_WALLET_PRIVATE_KEY]
+    J --> K[Enviar tx a Base Sepolia]
+    K --> L{¿Tx exitosa?}
+
+    L -->|No| G
+    L -->|Sí| M[token_minteado = True\ntoken_mint_tx = hash]
+    M --> N([1 COOP acreditado\nen wallet del padre])
+
+    N --> O([Balance visible\nen MetaMask y UI DAO])

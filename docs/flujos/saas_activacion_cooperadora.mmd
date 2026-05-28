@@ -1,0 +1,25 @@
+flowchart TD
+    A([Cooperadora completa formulario\nen /register]) --> B[Registro guardado\nstatus = PENDING]
+    B --> C([Platform admin recibe\nnotificación por email])
+
+    C --> D[Admin entra a Django Admin\ny revisa la solicitud]
+    D --> E{¿Aprueba?}
+
+    E -->|No| F[Suspender o ignorar]
+    E -->|Sí| G[Acción: Habilitar trial 30 días]
+
+    G --> H[status = TRIAL\ntrial_until = hoy + 30 días\nactivation_token = UUID generado]
+    H --> I[Signal: deploy DAO clone\nvía CooperadoraDAOFactory]
+    I --> J[Clone EIP-1167 deployado\nen Base Sepolia]
+    J --> K[dao_address guardado\nen Cooperadora]
+
+    H --> L[Email enviado al contacto\ncon link /{slug}/activar?token=UUID]
+    L --> M([Contacto recibe email])
+
+    M --> N[Hace clic en el link\n— token de un solo uso —]
+    N --> O[Formulario: crear usuario ADMIN\nnombre, apellido, DNI, contraseña]
+    O --> P[Usuario ADMIN creado\nactivation_token = null]
+    P --> Q([Admin de cooperadora\npuede iniciar sesión])
+
+    Q --> R[Login en /{slug}/login]
+    R --> S([Panel de administración\nde su cooperadora])

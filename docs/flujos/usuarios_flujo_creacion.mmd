@@ -1,18 +1,26 @@
 flowchart TD
-    A([Tesorero ingresa al sistema]) --> B[Accede al formulario\nCrear usuario]
+    A([Tesorero/Admin ingresa al sistema]) --> B[Accede al formulario\nCrear usuario]
 
     B --> C{¿Qué tipo de usuario?}
 
     C -->|Padre / Tutor| D[Ingresa nombre, apellido,\nDNI, email y contraseña]
     D --> E[Sistema crea cuenta PAD]
-    E --> F([Padre recibe credenciales\ny puede iniciar sesión])
+    E --> F[Signal: genera wallet Ethereum\ny registra en clone DAO]
+    F --> G([Padre puede iniciar sesión\nWallet lista en segundo plano])
 
-    C -->|Alumno| G[Ingresa nombre, apellido,\nDNI y email del padre]
-    G --> H{¿Existe un PAD\ncon ese email?}
+    C -->|Alumno| H[Ingresa nombre, apellido,\nDNI y DNI del padre]
+    H --> I{¿Existe PAD con\nese DNI en esta cooperadora?}
 
-    H -->|No| I[/Error: debe crear\nal padre primero/]
-    H -->|Sí| J[Selecciona grado, año\ny modalidad de pago]
+    I -->|No| J[/Error: debe crear\nal padre primero/]
+    I -->|Sí| K[Selecciona grado, año\ny modalidad de pago]
 
-    J --> K[Sistema crea cuenta SOC\ny la vincula al padre]
-    K --> L[Sistema genera\nInscripción automáticamente]
-    L --> M([Alumno aparece disponible\nen el formulario de pagos])
+    K --> L[Sistema crea SOC + Inscripción\nen transacción atómica]
+    L --> M([Alumno disponible\nen formulario de pagos])
+
+    G --> N([PAD hace primer login])
+    N --> O{¿key_revealed = False\ny tiene wallet?}
+    O -->|Sí| P[Banner: Tu wallet COOP está lista]
+    P --> Q[PAD hace clic 'Ver mi wallet']
+    Q --> R[Muestra address + private key\nuna sola vez]
+    R --> S[key_revealed = True\nBanner desaparece]
+    O -->|No| T([Dashboard normal])
