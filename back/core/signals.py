@@ -2,6 +2,8 @@ import logging
 from datetime import date
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
+from django.core.mail import send_mail
+from django.conf import settings
 
 logger = logging.getLogger(__name__)
 
@@ -130,3 +132,41 @@ def emitir_factura_on_pago(sender, instance, created, **kwargs):
         )
     except Exception:
         logger.exception("emitir_factura falló para pago id=%s", instance.pk)
+
+
+@receiver(post_save, sender='core.Pago')
+def notificar_pago_padre(sender, instance, created, **kwargs):
+    if not created:
+        return
+    padre = instance.inscripcion.usuario.padre
+    if not padre or not padre.email:
+        return
+
+    alumno = instance.inscripcion.usuario
+    cooperadora = instance.inscripcion.cooperadora
+
+    if instance.tipo == 'mensual':
+        detalle = f"Cuota mensual — {instance.get_mes_display()} {instance.anio}"
+    elif instance.tipo == 'anual':
+        detalle = f"Pago anual {instance.anio}"
+    else:
+        detalle = f"Donación"
+
+    try:
+        send_mail(
+            subject=f'[{cooperadora.nombre}] Pago registrado',
+            message=(
+                f'Hola {padre.nombre},\n\n'
+                f'Se registró un pago para {alumno.nombre} {alumno.apellido}:\n\n'
+                f'  Concepto: {detalle}\n'
+                f'  Monto: ${instance.monto}\n'
+                f'  Fecha: {instance.fecha_pago.strftime("%d/%m/%Y")}\n\n'
+                f'Gracias por tu pago.\n\n'
+                f'{cooperadora.nombre}'
+            ),
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            recipient_list=[padre.email],
+            fail_silently=True,
+        )
+    except Exception:
+        logger.exception("notificar_pago_padre falló para pago id=%s", instance.pk)

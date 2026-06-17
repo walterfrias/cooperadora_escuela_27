@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ToastContainer } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
 import { TenantProvider } from './contex/TenantContext';
@@ -26,6 +26,9 @@ function App() {
           <ToastContainer position="top-right" autoClose={5000} />
           <Header />
           <Routes>
+            {/* Raíz → registro */}
+            <Route path="/" element={<Navigate to="/register" replace />} />
+
             {/* Ruta pública — registro de cooperadoras */}
             <Route path="/register" element={<RegistroCooperadoraPage />} />
 

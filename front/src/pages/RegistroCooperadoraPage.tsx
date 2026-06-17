@@ -54,10 +54,10 @@ export default function RegistroCooperadoraPage() {
 
   if (enviado) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
         <div className="max-w-md w-full text-center space-y-4">
-          <h1 className="text-2xl font-bold text-green-700">¡Solicitud enviada!</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl font-bold text-green-700 dark:text-green-400">¡Solicitud enviada!</h1>
+          <p className="text-gray-600 dark:text-gray-300">
             Recibimos tu solicitud. Te contactaremos a <strong>{form.email_contacto}</strong> cuando tu acceso esté habilitado.
           </p>
         </div>
@@ -66,18 +66,18 @@ export default function RegistroCooperadoraPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
       <div className="max-w-md w-full space-y-6">
         <div className="text-center">
-          <h1 className="text-2xl font-bold text-gray-800">Registrá tu cooperadora</h1>
-          <p className="text-gray-500 text-sm mt-1">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Registrá tu cooperadora</h1>
+          <p className="text-gray-500 dark:text-gray-400 text-sm mt-1">
             Completá el formulario y te habilitamos el acceso.
           </p>
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-gray-700">Número de escuela</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Número de escuela</label>
             <input
               type="number"
               name="numero_escuela"
@@ -85,47 +85,47 @@ export default function RegistroCooperadoraPage() {
               onChange={handleChange}
               required
               min={1}
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Nombre de la escuela</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Nombre de la escuela</label>
             <input
               type="text"
               name="nombre"
               value={form.nombre}
               onChange={handleChange}
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Tu nombre</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Tu nombre</label>
             <input
               type="text"
               name="nombre_contacto"
               value={form.nombre_contacto}
               onChange={handleChange}
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">Email de contacto</label>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">Email de contacto</label>
             <input
               type="email"
               name="email_contacto"
               value={form.email_contacto}
               onChange={handleChange}
               required
-              className="mt-1 block w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mt-1 block w-full border border-gray-300 dark:border-gray-600 rounded-md px-3 py-2 text-sm bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
 
-          {error && <p className="text-red-600 text-sm">{error}</p>}
+          {error && <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>}
 
           <button
             type="submit"

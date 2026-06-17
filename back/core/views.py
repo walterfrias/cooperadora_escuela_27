@@ -414,11 +414,30 @@ class RegistroCooperadoraView(APIView):
         cooperadora = serializer.save()
 
         self._notificar_admin(cooperadora)
+        self._confirmar_registrante(cooperadora)
 
         return Response(
             {'detail': 'Solicitud recibida. Te contactaremos cuando tu acceso esté habilitado.'},
             status=status.HTTP_201_CREATED,
         )
+
+    def _confirmar_registrante(self, cooperadora):
+        try:
+            send_mail(
+                subject='[CooperaApp] Recibimos tu solicitud',
+                message=(
+                    f'Hola {cooperadora.nombre_contacto},\n\n'
+                    f'Recibimos tu solicitud para registrar la cooperadora "{cooperadora.nombre}" '
+                    f'(Escuela N°{cooperadora.numero_escuela}).\n\n'
+                    f'Estamos revisando los datos. Te escribiremos a este email cuando tu acceso esté habilitado.\n\n'
+                    f'Saludos,\nEl equipo de CooperaApp'
+                ),
+                from_email=django_settings.DEFAULT_FROM_EMAIL,
+                recipient_list=[cooperadora.email_contacto],
+                fail_silently=True,
+            )
+        except Exception:
+            pass
 
     def _notificar_admin(self, cooperadora):
         try:
