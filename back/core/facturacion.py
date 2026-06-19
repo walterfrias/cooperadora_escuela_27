@@ -1,189 +1,163 @@
-# back/core/facturacion.py
 """
-Integración con AFIP - WSAA (autenticación) + WSFE (facturación electrónica).
-
-Requiere en .env:
-    AFIP_CERT_PATH   → ruta al .crt emitido por AFIP
-    AFIP_KEY_PATH    → ruta al .key generado localmente
-    AFIP_MODO        → "homologacion" | "produccion"
-
-Los certificados NO van en la base de datos ni en el repo.
+Integración con AFIP via AFIPSDK (afip.py).
+Requiere en .env: AFIPSDK_ACCESS_TOKEN
+En test (sin certificado) usa el CUIT de prueba 20-40937847-2 automáticamente.
+En producción, pasar AFIPSDK_CERT_PATH y AFIPSDK_KEY_PATH por cooperadora.
 """
 
-import os
+import calendar
 import datetime
-import base64
-from pathlib import Path
+from django.conf import settings
+from afip import Afip
 
-from cryptography import x509
-from cryptography.hazmat.primitives import hashes, serialization
-from cryptography.hazmat.primitives.serialization import pkcs7
-from cryptography.hazmat.primitives.asymmetric.rsa import RSAPrivateKey
-from cryptography.hazmat.backends import default_backend
-from lxml import etree
-from zeep import Client
-
-# ── Endpoints ────────────────────────────────────────────────────────────────
-
-URLS = {
-    "homologacion": {
-        "wsaa": "https://wsaahomo.afip.gov.ar/ws/services/LoginCms?wsdl",
-        "wsfe": "https://wswhomo.afip.gov.ar/wsfev1/service.asmx?wsdl",
-    },
-    "produccion": {
-        "wsaa": "https://wsaa.afip.gov.ar/ws/services/LoginCms?wsdl",
-        "wsfe": "https://servicios1.afip.gov.ar/wsfev1/service.asmx?wsdl",
-    },
-}
-
-MODO = os.environ.get("AFIP_MODO", "homologacion")
+TIPO_FACTURA_C         = 11  # Monotributistas / cooperadoras escolares
+CONCEPTO_SERVICIO      = 2   # Servicios
+DOC_TIPO_DNI           = 96
+CONDICION_IVA_CONS_FIN = 5   # Consumidor Final (RG 5616)
 
 
-# ── WSAA — autenticación ──────────────────────────────────────────────────────
-
-def _leer_certificado():
-    cert_path = os.environ.get("AFIP_CERT_PATH", "")
-    key_path  = os.environ.get("AFIP_KEY_PATH", "")
-    if not cert_path or not key_path:
-        raise EnvironmentError(
-            "Faltan AFIP_CERT_PATH y/o AFIP_KEY_PATH en las variables de entorno."
-        )
-    cert = x509.load_pem_x509_certificate(Path(cert_path).read_bytes(), default_backend())
-    key  = serialization.load_pem_private_key(
-        Path(key_path).read_bytes(), password=None, backend=default_backend()
-    )
-    assert isinstance(key, RSAPrivateKey), "Solo se soportan claves RSA"
-    return cert, key
-
-
-def _armar_tra(servicio: str = "wsfe") -> bytes:
-    """Genera el TRA (Ticket de Requerimiento de Acceso) en XML."""
-    ahora      = datetime.datetime.now(datetime.timezone.utc)
-    generation = (ahora - datetime.timedelta(minutes=10)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-    expiration = (ahora + datetime.timedelta(hours=12)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
-
-    tra = etree.Element("loginTicketRequest", version="1.0")
-    header = etree.SubElement(tra, "header")
-    etree.SubElement(header, "uniqueId").text    = str(int(ahora.timestamp()))
-    etree.SubElement(header, "generationTime").text = generation
-    etree.SubElement(header, "expirationTime").text  = expiration
-    etree.SubElement(tra, "service").text = servicio
-    return etree.tostring(tra, xml_declaration=True, encoding="UTF-8")
-
-
-def _firmar_tra(tra_bytes: bytes) -> str:
-    """Firma el TRA con la clave privada y devuelve el CMS en base64."""
-    cert, key = _leer_certificado()
-    signed = (
-        pkcs7.PKCS7SignatureBuilder()
-        .set_data(tra_bytes)
-        .add_signer(cert, key, hashes.SHA256())
-        .sign(serialization.Encoding.DER, [pkcs7.PKCS7Options.DetachedSignature])
-    )
-    return base64.b64encode(signed).decode()
-
-
-def obtener_ticket_acceso() -> dict:
-    """
-    Llama a WSAA y devuelve {'token': ..., 'sign': ..., 'cuit': ...}.
-    El ticket es válido 12 hs — en producción convendría cachearlo.
-    """
-    tra_bytes = _armar_tra("wsfe")
-    cms       = _firmar_tra(tra_bytes)
-
-    client    = Client(URLS[MODO]["wsaa"])
-    respuesta = client.service.loginCms(cms)
-    raiz      = etree.fromstring(respuesta.encode())
-
-    return {
-        "token": raiz.findtext(".//token"),
-        "sign":  raiz.findtext(".//sign"),
-        "cuit":  raiz.findtext(".//cuit"),
+def _get_client(cuit_emisor: str) -> Afip:
+    cuit_num = int(cuit_emisor.replace("-", ""))
+    config = {
+        "CUIT": cuit_num,
+        "access_token": settings.AFIPSDK_ACCESS_TOKEN,
     }
+    cert_path = getattr(settings, "AFIPSDK_CERT_PATH", None)
+    key_path  = getattr(settings, "AFIPSDK_KEY_PATH",  None)
+    if cert_path and key_path:
+        with open(cert_path) as f:
+            config["cert"] = f.read()
+        with open(key_path) as f:
+            config["key"] = f.read()
+    return Afip(config)
 
 
-# ── WSFE — emisión de comprobante ────────────────────────────────────────────
+def _fmt_afip(d: datetime.date) -> int:
+    return int(d.strftime("%Y%m%d"))
 
-TIPO_COMPROBANTE_C = 11   # Factura C
-IVA_EXENTO        = 3    # Las cooperadoras escolares generalmente son exentas
+
+def _fmt_pdf(d: datetime.date) -> str:
+    return d.strftime("%d/%m/%Y")
+
 
 def emitir_factura(
     cuit_emisor: str,
     punto_venta: int,
     cuil_receptor: str,
     monto: float,
+    fecha_serv_desde: datetime.date = None,
+    fecha_serv_hasta: datetime.date = None,
+    emisor_nombre: str = "",
+    receptor_nombre: str = "",
+    descripcion: str = "Cuota cooperadora escolar",
+    email_receptor: str = None,
 ) -> dict:
     """
-    Emite una Factura C en AFIP y devuelve {'numero', 'cae', 'vencimiento_cae'}.
-
-    Parámetros:
-        cuit_emisor    → CUIT de la cooperadora (sin guiones)
-        punto_venta    → número de punto de venta habilitado en AFIP
-        cuil_receptor  → CUIL del padre/tutor (sin guiones)
-        monto          → importe total del pago
-        concepto       → descripción que aparece en la factura
+    Emite una Factura C en AFIP, genera el PDF y lo envía al padre por email.
+    Devuelve {'numero', 'cae', 'vencimiento_cae', 'pdf_url'}.
     """
-    cuit_num = cuit_emisor.replace("-", "")
+    afip = _get_client(cuit_emisor)
 
-    ticket = obtener_ticket_acceso()
+    last   = afip.ElectronicBilling.getLastVoucher(punto_venta, TIPO_FACTURA_C)
+    next_n = last + 1
+    hoy    = datetime.date.today()
 
-    client = Client(URLS[MODO]["wsfe"])
-    auth   = {
-        "Token": ticket["token"],
-        "Sign":  ticket["sign"],
-        "Cuit":  cuit_num,
+    if fecha_serv_desde is None:
+        fecha_serv_desde = hoy.replace(day=1)
+    if fecha_serv_hasta is None:
+        fecha_serv_hasta = hoy.replace(day=calendar.monthrange(hoy.year, hoy.month)[1])
+
+    cuit_num = int(cuit_emisor.replace("-", ""))
+
+    # ── Emitir comprobante ────────────────────────────────────────────────────
+    voucher_data = {
+        "CantReg":              1,
+        "PtoVta":               punto_venta,
+        "CbteTipo":             TIPO_FACTURA_C,
+        "Concepto":             CONCEPTO_SERVICIO,
+        "DocTipo":              DOC_TIPO_DNI,
+        "DocNro":               int(cuil_receptor.replace("-", "")),
+        "CbteDesde":            next_n,
+        "CbteHasta":            next_n,
+        "CbteFch":              _fmt_afip(hoy),
+        "FchServDesde":         _fmt_afip(fecha_serv_desde),
+        "FchServHasta":         _fmt_afip(fecha_serv_hasta),
+        "FchVtoPago":           _fmt_afip(hoy),
+        "ImpTotal":             round(monto, 2),
+        "ImpTotConc":           0,
+        "ImpNeto":              round(monto, 2),
+        "ImpOpEx":              0,
+        "ImpIVA":               0,
+        "ImpTrib":              0,
+        "MonId":                "PES",
+        "MonCotiz":             1,
+        "CondicionIVAReceptorId": CONDICION_IVA_CONS_FIN,
     }
 
-    # Obtener el último número de comprobante para calcular el próximo
-    ultimo = client.service.FECompUltimoAutorizado(
-        Auth=auth,
-        PtoVta=punto_venta,
-        CbteTipo=TIPO_COMPROBANTE_C,
-    )
-    proximo_numero = int(ultimo.CbteNro) + 1
+    res         = afip.ElectronicBilling.createVoucher(voucher_data, False)
+    cae         = res["CAE"]
+    vencimiento = datetime.date.fromisoformat(str(res["CAEFchVto"]))
 
-    hoy = datetime.date.today().strftime("%Y%m%d")
+    # ── Generar PDF y enviarlo al padre ───────────────────────────────────────
+    pdf_url = None
+    try:
+        pdf_data = {
+            "file_name": f"factura_c_{punto_venta:05d}_{next_n:08d}.pdf",
+            "template": {
+                "name": "invoice-c",
+                "params": {
+                    "voucher_number":           next_n,
+                    "sales_point":              punto_venta,
+                    "issue_date":               _fmt_pdf(hoy),
+                    "cae":                      cae,
+                    "cae_due_date":             _fmt_pdf(vencimiento),
+                    "issuer_cuit":              cuit_num,
+                    "issuer_business_name":     emisor_nombre or cuit_emisor,
+                    "issuer_address":           "-",
+                    "issuer_iva_condition":     "Monotributista",
+                    "issuer_gross_income":      "-",
+                    "issuer_activity_start_date": "01/01/2024",
+                    "receiver_name":            receptor_nombre or "Consumidor Final",
+                    "receiver_address":         "-",
+                    "receiver_document_type":   DOC_TIPO_DNI,
+                    "receiver_document_number": int(cuil_receptor.replace("-", "")),
+                    "receiver_iva_condition":   "Consumidor Final",
+                    "sale_condition":           "Contado",
+                    "concept":                  CONCEPTO_SERVICIO,
+                    "currency_id":              "ARS",
+                    "currency_rate":            1,
+                    "items": [{
+                        "code":       "001",
+                        "description": descripcion,
+                        "quantity":   1,
+                        "unit_price": round(monto, 2),
+                        "subtotal":   round(monto, 2),
+                    }],
+                    "net_amount_taxed":   round(monto, 2),
+                    "net_amount_untaxed": 0,
+                    "exempt_amount":      0,
+                    "vat_amount":         0,
+                    "tributes_amount":    0,
+                    "total_amount":       round(monto, 2),
+                    "billing_from":       _fmt_pdf(fecha_serv_desde),
+                    "billing_to":         _fmt_pdf(fecha_serv_hasta),
+                    "payment_due_date":   _fmt_pdf(hoy),
+                },
+            },
+        }
 
-    solicitud = {
-        "FeCabReq": {
-            "CantReg":  1,
-            "PtoVta":   punto_venta,
-            "CbteTipo": TIPO_COMPROBANTE_C,
-        },
-        "FeDetReq": {
-            "FECAEDetRequest": [{
-                "Concepto":    2,           # 1=Productos, 2=Servicios, 3=Ambos
-                "DocTipo":     96,          # 96=DNI, 80=CUIT
-                "DocNro":      cuil_receptor.replace("-", ""),
-                "CbteDesde":   proximo_numero,
-                "CbteHasta":   proximo_numero,
-                "CbteFch":     hoy,
-                "ImpTotal":    round(monto, 2),
-                "ImpTotConc":  0,
-                "ImpNeto":     0,
-                "ImpOpEx":     round(monto, 2),  # exento de IVA
-                "ImpIVA":      0,
-                "ImpTrib":     0,
-                "MonId":       "PES",
-                "MonCotiz":    1,
-            }]
-        },
-    }
+        if email_receptor:
+            pdf_data["send_to"] = email_receptor
 
-    respuesta = client.service.FECAESolicitar(Auth=auth, FeCAEReq=solicitud)
-    detalle   = respuesta.FeDetResp.FECAEDetResponse[0]
-
-    if detalle.Resultado != "A":
-        errores = [
-            f"{e.Code}: {e.Msg}"
-            for e in (detalle.Observaciones.Obs if detalle.Observaciones else [])
-        ]
-        raise ValueError(f"AFIP rechazó la factura: {'; '.join(errores)}")
-
-    vencimiento = datetime.datetime.strptime(detalle.CAEFchVto, "%Y%m%d").date()
+        pdf_res = afip.ElectronicBilling.createPDF(pdf_data)
+        pdf_url = pdf_res.get("file")
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("createPDF falló para factura N°%s", next_n)
 
     return {
-        "numero":          proximo_numero,
-        "cae":             detalle.CAE,
+        "numero":          next_n,
+        "cae":             cae,
         "vencimiento_cae": vencimiento,
+        "pdf_url":         pdf_url,
     }

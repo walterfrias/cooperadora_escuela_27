@@ -1,7 +1,10 @@
 import logging
+import calendar
+import urllib.request
 from datetime import date
 from django.db.models.signals import pre_save, post_save
 from django.dispatch import receiver
+from django.core.mail import EmailMessage
 from django.core.mail import send_mail
 from django.conf import settings
 
@@ -105,8 +108,8 @@ def emitir_factura_on_pago(sender, instance, created, **kwargs):
             instance.pk,
         )
         return
-    cuil = instance.inscripcion.usuario.cuil
-    if not cuil:
+    padre = instance.inscripcion.usuario.padre
+    if not padre or not padre.cuil:
         logger.warning(
             "Factura omitida para pago id=%s: padre sin CUIL registrado",
             instance.pk,
@@ -114,11 +117,34 @@ def emitir_factura_on_pago(sender, instance, created, **kwargs):
         return
     try:
         from core.facturacion import emitir_factura
+
+        if instance.tipo == 'mensual' and instance.mes and instance.anio:
+            serv_desde = date(instance.anio, instance.mes, 1)
+            serv_hasta = date(instance.anio, instance.mes, calendar.monthrange(instance.anio, instance.mes)[1])
+        elif instance.tipo == 'anual' and instance.anio:
+            serv_desde = date(instance.anio, 1, 1)
+            serv_hasta = date(instance.anio, 12, 31)
+        else:
+            serv_desde = serv_hasta = None
+
+        if instance.tipo == 'mensual':
+            descripcion = f"Cuota mensual — {instance.get_mes_display()} {instance.anio}"
+        elif instance.tipo == 'anual':
+            descripcion = f"Pago anual {instance.anio}"
+        else:
+            descripcion = "Donación cooperadora escolar"
+
         resultado = emitir_factura(
             cuit_emisor=cooperadora.cuit,
             punto_venta=cooperadora.afip_punto_venta,
-            cuil_receptor=cuil,
+            cuil_receptor=padre.cuil,
             monto=float(instance.monto),
+            fecha_serv_desde=serv_desde,
+            fecha_serv_hasta=serv_hasta,
+            emisor_nombre=cooperadora.nombre,
+            receptor_nombre=f"{padre.nombre} {padre.apellido}",
+            descripcion=descripcion,
+            email_receptor=padre.email or None,
         )
         sender.objects.filter(pk=instance.pk).update(
             factura_emitida=True,
@@ -126,6 +152,10 @@ def emitir_factura_on_pago(sender, instance, created, **kwargs):
             factura_cae=resultado["cae"],
             factura_vencimiento_cae=resultado["vencimiento_cae"],
         )
+        # Compartir pdf_url con notificar_pago_padre via atributo temporal
+        instance._pdf_url = resultado.get("pdf_url")
+        instance._factura_numero = resultado["numero"]
+        instance._factura_cae = resultado["cae"]
         logger.info(
             "Factura emitida para pago id=%s: N°%s CAE=%s",
             instance.pk, resultado["numero"], resultado["cae"],
@@ -153,20 +183,38 @@ def notificar_pago_padre(sender, instance, created, **kwargs):
         detalle = f"Donación"
 
     try:
-        send_mail(
-            subject=f'[{cooperadora.nombre}] Pago registrado',
-            message=(
-                f'Hola {padre.nombre},\n\n'
-                f'Se registró un pago para {alumno.nombre} {alumno.apellido}:\n\n'
-                f'  Concepto: {detalle}\n'
-                f'  Monto: ${instance.monto}\n'
-                f'  Fecha: {instance.fecha_pago.strftime("%d/%m/%Y")}\n\n'
-                f'Gracias por tu pago.\n\n'
-                f'{cooperadora.nombre}'
-            ),
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[padre.email],
-            fail_silently=True,
+        pdf_url      = getattr(instance, '_pdf_url', None)
+        nro_factura  = getattr(instance, '_factura_numero', None)
+        cae          = getattr(instance, '_factura_cae', None)
+
+        cuerpo = (
+            f'Hola {padre.nombre},\n\n'
+            f'Se registró un pago para {alumno.nombre} {alumno.apellido}:\n\n'
+            f'  Concepto: {detalle}\n'
+            f'  Monto: ${instance.monto}\n'
+            f'  Fecha: {instance.fecha_pago.strftime("%d/%m/%Y")}\n'
         )
+        if nro_factura and cae:
+            cuerpo += f'  Factura C N°{nro_factura} — CAE: {cae}\n'
+
+        cuerpo += f'\nGracias por tu pago.\n\n{cooperadora.nombre}'
+
+        email = EmailMessage(
+            subject=f'[{cooperadora.nombre}] Pago registrado',
+            body=cuerpo,
+            from_email=settings.DEFAULT_FROM_EMAIL,
+            to=[padre.email],
+        )
+
+        if pdf_url:
+            try:
+                with urllib.request.urlopen(pdf_url) as resp:
+                    pdf_bytes = resp.read()
+                nombre_archivo = f'factura_c_{nro_factura}.pdf'
+                email.attach(nombre_archivo, pdf_bytes, 'application/pdf')
+            except Exception:
+                logger.warning("No se pudo adjuntar el PDF para pago id=%s", instance.pk)
+
+        email.send(fail_silently=True)
     except Exception:
         logger.exception("notificar_pago_padre falló para pago id=%s", instance.pk)

@@ -17,6 +17,7 @@ class CooperadoraAdmin(admin.ModelAdmin):
     fieldsets = (
         (None, {'fields': ('numero_escuela', 'nombre', 'slug', 'dao_address')}),
         ('Suscripción', {'fields': ('subscription_status', 'trial_until', 'subscription_expiry')}),
+        ('AFIP', {'fields': ('cuit', 'afip_punto_venta')}),
         ('Info', {'fields': ('creada_en',)}),
     )
     actions = ['habilitar_trial_30_dias', 'activar_anualidad', 'suspender', 'marcar_pendiente', 'enviar_bienvenida']
@@ -117,7 +118,7 @@ class UsuarioAdmin(UserAdmin):
     list_filter = ('rol', 'cooperadora', 'is_staff', 'is_active')
     fieldsets = (
         (None, {'fields': ('email', 'password')}),
-        ('Información personal', {'fields': ('nombre', 'apellido', 'dni', 'telefono', 'rol', 'cooperadora')}),
+        ('Información personal', {'fields': ('nombre', 'apellido', 'dni', 'cuil', 'telefono', 'rol', 'cooperadora')}),
         ('Permisos', {'fields': ('is_active', 'is_staff', 'is_superuser', 'groups', 'user_permissions')}),
         ('Fechas importantes', {'fields': ('last_login', 'date_joined')}),
     )

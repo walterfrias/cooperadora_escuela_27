@@ -14,5 +14,4 @@ cloudinary==1.42.1
 django-cloudinary-storage==0.3.0
 web3==7.8.0
 cryptography==44.0.3
-zeep==4.3.2
-lxml==6.1.1
+afip.py==1.2.0

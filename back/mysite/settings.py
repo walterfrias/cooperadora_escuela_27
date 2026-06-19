@@ -198,6 +198,11 @@ DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', 'noreply@cooperadoras.org')
 PLATFORM_ADMIN_EMAIL = os.getenv('PLATFORM_ADMIN_EMAIL', 'walter.frias.dev@gmail.com')
 FRONTEND_URL = os.getenv('FRONTEND_URL', 'http://localhost:5173')
 
+# AFIP / ARCA (facturación electrónica)
+AFIPSDK_ACCESS_TOKEN = os.getenv('AFIPSDK_ACCESS_TOKEN', '')
+AFIPSDK_CERT_PATH    = os.getenv('AFIPSDK_CERT_PATH', '')   # solo en producción con cert propio
+AFIPSDK_KEY_PATH     = os.getenv('AFIPSDK_KEY_PATH',  '')   # solo en producción con cert propio
+
 
 # Internationalization
 # https://docs.djangoproject.com/en/5.1/topics/i18n/
