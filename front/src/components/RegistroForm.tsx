@@ -30,7 +30,7 @@ interface ApiErrors {
 }
 
 const RegistroForm: React.FC = () => {
-  const { registro, isTesorero, isAdmin, authFetch } = useAuth();
+  const { registro, isTesorero, isAdmin, isPresidente, authFetch } = useAuth();
   const { slug } = useTenant();
   const navigate = useNavigate();
 
@@ -53,7 +53,7 @@ const RegistroForm: React.FC = () => {
   const [apiErrors, setApiErrors] = useState<ApiErrors>({});
   const [grados, setGrados] = useState<Grado[]>([]);
 
-  if (!isTesorero && !isAdmin) {
+  if (!isTesorero && !isAdmin && !isPresidente) {
     navigate(`/${slug}/login`);
     return null;
   }

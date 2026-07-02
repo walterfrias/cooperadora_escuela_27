@@ -22,6 +22,7 @@ interface LoginResponse {
   access: string;
   refresh: string;
   user: User;
+  slug: string | null;
 }
 
 interface RegisterData {
@@ -53,7 +54,7 @@ interface AuthContextType {
   user: User | null;
   accessToken: string | null;
   refreshToken: string | null;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: any }>;
+  login: (email: string, password: string) => Promise<{ success: boolean; error?: any; slug?: string | null }>;
   registro: (userData: RegisterData) => Promise<{ success: boolean; data?: RegisterResponse; error?: any }>;
   logout: () => void;
   refreshAccessToken: () => Promise<string | null>;
@@ -119,7 +120,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   };
 
   // Login
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: any }> => {
+  const login = async (email: string, password: string): Promise<{ success: boolean; error?: any; slug?: string | null }> => {
     try {
       const response = await fetch(`${API_URL}/api/login/`, {
         method: 'POST',
@@ -133,7 +134,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       localStorage.setItem('accessToken', data.access);
       localStorage.setItem('refreshToken', data.refresh);
       localStorage.setItem('user', JSON.stringify(data.user));
-      return { success: true };
+      return { success: true, slug: data.slug };
     } catch (error) {
       return { success: false, error };
     }

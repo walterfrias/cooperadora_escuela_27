@@ -59,7 +59,7 @@ interface FormPago {
 }
 
 export default function PagosPage() {
-  const { authFetch, isAdmin, isTesorero, loading: authLoading } = useAuth();
+  const { authFetch, isAdmin, isTesorero, isPresidente, loading: authLoading } = useAuth();
   const navigate = useNavigate();
 
   const [pagos, setPagos] = useState<Pago[]>([]);
@@ -83,10 +83,10 @@ export default function PagosPage() {
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (!authLoading && !isAdmin && !isTesorero) {
+    if (!authLoading && !isAdmin && !isTesorero && !isPresidente) {
       navigate('/');
     }
-  }, [authLoading, isAdmin, isTesorero, navigate]);
+  }, [authLoading, isAdmin, isTesorero, isPresidente, navigate]);
 
   useEffect(() => {
     fetchGrados();
@@ -185,12 +185,14 @@ export default function PagosPage() {
             <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100">Gestión de Pagos</h1>
             <p className="text-gray-500 text-sm mt-1">Panel del Tesorero</p>
           </div>
-          <button
-            onClick={handleAbrirModal}
-            className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg"
-          >
-            + Registrar pago
-          </button>
+          {(isAdmin || isTesorero) && (
+            <button
+              onClick={handleAbrirModal}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium px-4 py-2 rounded-lg"
+            >
+              + Registrar pago
+            </button>
+          )}
         </div>
 
         {/* Filtros */}

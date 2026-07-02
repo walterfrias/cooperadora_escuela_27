@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { API_URL } from '../config';
 
 interface FormData {
@@ -74,6 +75,13 @@ export default function RegistroCooperadoraPage() {
             Completá el formulario y te habilitamos el acceso.
           </p>
         </div>
+
+        <p className="text-center text-sm text-gray-600 dark:text-gray-400">
+          ¿Ya estás registrado?{' '}
+          <Link to="/login" className="text-blue-600 dark:text-blue-400 font-medium hover:underline">
+            Iniciá sesión
+          </Link>
+        </p>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>

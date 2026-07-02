@@ -27,7 +27,7 @@ const Card: React.FC<DashCard> = ({ icon, title, description, path, label }) => 
 );
 
 const Home: React.FC = () => {
-  const { isAuthenticated, isAdmin, isTesorero, isSecretario, isPadre, user } = useAuth();
+  const { isAuthenticated, isAdmin, isTesorero, isPresidente, isSecretario, isPadre, user } = useAuth();
   const { slug } = useTenant();
 
   // Sin sesión: landing pública
@@ -109,6 +109,20 @@ const Home: React.FC = () => {
       path: `/${slug}/registro`,
       label: 'Registrar',
     },
+    {
+      icon: '👨‍👩‍👧‍👦',
+      title: 'Mis hijos',
+      description: 'Si también sos padre/tutor, consultá la información de tus hijos.',
+      path: `/${slug}/mis-hijos`,
+      label: 'Ver mis hijos',
+    },
+    {
+      icon: '📋',
+      title: 'Estado de cuenta',
+      description: 'Revisá las cuotas pagas, pendientes y donaciones de tus hijos.',
+      path: `/${slug}/estado-cuenta`,
+      label: 'Ver estado',
+    },
   ];
 
   const secCards: DashCard[] = [
@@ -135,6 +149,10 @@ const Home: React.FC = () => {
     cards = tesCards;
     greeting = `Hola, ${user?.nombre}`;
     subtitle = 'Panel del Tesorero';
+  } else if (isPresidente) {
+    cards = tesCards;
+    greeting = `Hola, ${user?.nombre}`;
+    subtitle = 'Panel del Presidente';
   } else if (isSecretario) {
     cards = secCards;
     greeting = `Hola, ${user?.nombre}`;
@@ -149,7 +167,7 @@ const Home: React.FC = () => {
         icon: '📢',
         title: 'Publicaciones',
         description: 'Noticias, agenda y novedades de la cooperadora y la escuela.',
-        path: '/publicaciones',
+        path: `/${slug}/publicaciones`,
         label: 'Ver publicaciones',
       },
     ];

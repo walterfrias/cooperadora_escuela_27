@@ -78,7 +78,7 @@ class UsuarioCreateSerializer(serializers.ModelSerializer):
             if dni_padre:
                 # Filtramos por cooperadora para no cruzar datos entre tenants
                 cooperadora = self.context.get('cooperadora')
-                qs = Usuario.objects.filter(dni=dni_padre, rol='PAD')
+                qs = Usuario.objects.filter(dni=dni_padre).exclude(rol='SOC')
                 if cooperadora:
                     qs = qs.filter(cooperadora=cooperadora)
                 try:

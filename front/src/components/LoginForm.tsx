@@ -26,7 +26,12 @@ const LoginForm: React.FC = () => {
             const result = await login(formData.email, formData.password);
             if (result.success) {
                 toast.success('¡Login exitoso!');
-                navigate(`/${slug}/about`);
+                const destino = result.slug || slug;
+                if (destino) {
+                    navigate(`/${destino}/about`);
+                } else {
+                    toast.error('Tu usuario no está asociado a ninguna cooperadora.');
+                }
             } else {
                 const errorMsg = result.error?.message || 'Credenciales inválidas. Intenta de nuevo.';
                 toast.error(errorMsg);

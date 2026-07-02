@@ -122,7 +122,7 @@ class Usuario(AbstractUser):
         blank=True,
         on_delete=models.SET_NULL,
         related_name='hijos',
-        limit_choices_to={'rol': Rol.PADRE}
+        limit_choices_to=~models.Q(rol=Rol.SOCIO)
     )
     cuil                         = models.CharField(max_length=13, blank=True, help_text="Formato: XX-XXXXXXXX-X")
     wallet_address               = models.CharField(max_length=42, null=True, blank=True)

@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contex/UserContex';
+import { useTenant } from '../contex/TenantContext';
 import { API_URL } from '../config';
 
 import { toast } from 'react-toastify';
@@ -50,6 +52,8 @@ const ROL_COLOR: Record<string, string> = {
 
 const UsuariosPage: React.FC = () => {
   const { authFetch, isAdmin, isPresidente, isTesorero } = useAuth();
+  const { slug } = useTenant();
+  const navigate = useNavigate();
   const canManage = isAdmin || isTesorero || isPresidente;
 
   const [usuarios, setUsuarios] = useState<Usuario[]>([]);
@@ -147,7 +151,17 @@ const UsuariosPage: React.FC = () => {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
 
       <main className="max-w-5xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-6">Usuarios</h1>
+        <div className="mb-6 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Usuarios</h1>
+          {canManage && (
+            <button
+              onClick={() => navigate(`/${slug}/registro`)}
+              className="bg-cyan-500 hover:bg-cyan-600 text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
+            >
+              + Crear usuario
+            </button>
+          )}
+        </div>
 
         {/* Filtros */}
         <div className="flex flex-col sm:flex-row gap-3 mb-5">

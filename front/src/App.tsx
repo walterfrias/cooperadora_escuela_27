@@ -32,6 +32,9 @@ function App() {
             {/* Ruta pública — registro de cooperadoras */}
             <Route path="/register" element={<RegistroCooperadoraPage />} />
 
+            {/* Login sin slug — el backend resuelve la cooperadora del usuario */}
+            <Route path="/login" element={<LoginFormPages />} />
+
             {/* Rutas por tenant — /:slug/... */}
             <Route path="/:slug" element={<LoginFormPages />} />
             <Route path="/:slug/login" element={<LoginFormPages />} />

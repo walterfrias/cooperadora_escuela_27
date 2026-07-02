@@ -17,7 +17,7 @@ const Header: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { slug, nombre, numeroEscuela } = useTenant();
 
-  const canManage = isAdmin || isTesorero;
+  const canManage = isAdmin || isTesorero || isPresidente;
   const p = (path: string) => `/${slug}${path}`;
 
   const navLinks: NavItem[] = [
@@ -30,12 +30,8 @@ const Header: React.FC = () => {
       { name: 'Usuarios', path: p('/usuarios') },
       { name: 'Pagos', path: p('/pagos') },
       { name: 'Cuotas', path: p('/cuotas') },
-      { name: 'Nuevo usuario', path: p('/registro') },
-      { name: 'Publicaciones', path: p('/publicaciones') },
-    ] : isPresidente ? [
-      { name: 'Usuarios', path: p('/usuarios') },
-      { name: 'Cuotas', path: p('/cuotas') },
-      { name: 'Nuevo usuario', path: p('/registro') },
+      { name: 'Mis hijos', path: p('/mis-hijos') },
+      { name: 'Estado de cuenta', path: p('/estado-cuenta') },
       { name: 'Publicaciones', path: p('/publicaciones') },
     ] : [
       { name: 'Publicaciones', path: p('/publicaciones') },

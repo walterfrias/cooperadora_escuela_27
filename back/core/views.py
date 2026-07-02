@@ -11,7 +11,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework_simplejwt.exceptions import TokenError
 from .models import Usuario, Publicacion, PublicacionImagen, Cooperadora
 from django.shortcuts import get_object_or_404
-from .permissions import EsTesoreroOAdmin, EsSecretarioOAdmin
+from .permissions import EsTesoreroOAdmin, EsSecretarioOAdmin, EsTesoreroAdminOPresidente
 from .throttles import LoginRateThrottle
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -56,7 +56,7 @@ class CrearUsuarioView(TenantQuerysetMixin, generics.CreateAPIView):
     """
     queryset = Usuario.objects.all()
     serializer_class = UsuarioCreateSerializer
-    permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
+    permission_classes = [IsAuthenticated, EsTesoreroAdminOPresidente]
 
     def get_serializer_context(self):
         ctx = super().get_serializer_context()
@@ -67,12 +67,12 @@ class UsuarioDetailView(TenantQuerysetMixin, generics.RetrieveUpdateDestroyAPIVi
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
     lookup_field = 'uuid'
-    permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
+    permission_classes = [IsAuthenticated, EsTesoreroAdminOPresidente]
 
 class UsuarioListView(TenantQuerysetMixin, generics.ListAPIView):
     queryset = Usuario.objects.all()
     serializer_class = UsuarioSerializer
-    permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
+    permission_classes = [IsAuthenticated, EsTesoreroAdminOPresidente]
 
 class UsuarioLoginView(APIView):
     permission_classes = [AllowAny]
@@ -92,7 +92,8 @@ class UsuarioLoginView(APIView):
 
         # Opcional: incluir datos del usuario
         user_data = UsuarioSerializer(user).data
-        return Response({**tokens, 'user': user_data}, status=status.HTTP_200_OK)
+        slug = user.cooperadora.slug if user.cooperadora else None
+        return Response({**tokens, 'user': user_data, 'slug': slug}, status=status.HTTP_200_OK)
     
 
 class MisHijosView(generics.ListAPIView):
@@ -167,7 +168,7 @@ class InscripcionViewSet(viewsets.ModelViewSet):
 
     def get_permissions(self):
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
+            permission_classes = [IsAuthenticated, EsTesoreroAdminOPresidente]
         else:
             permission_classes = [IsAuthenticated]
         return [permission() for permission in permission_classes]
@@ -395,7 +396,7 @@ class LogoutView(APIView):
 class CuotaMensualViewSet(TenantQuerysetMixin, viewsets.ModelViewSet):
     queryset = CuotaMensual.objects.all()
     serializer_class = CuotaMensualSerializer
-    permission_classes = [IsAuthenticated, EsTesoreroOAdmin]
+    permission_classes = [IsAuthenticated, EsTesoreroAdminOPresidente]
 
     def get_queryset(self):
         queryset = super().get_queryset()
